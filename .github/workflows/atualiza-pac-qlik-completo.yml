@@ -19,7 +19,7 @@ jobs:
           cat > pac_qlik.py <<'PYEOF'
           import os,time,csv,io,json,re,unicodedata
           from playwright.sync_api import sync_playwright
-          URL='https://www1.siop.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=IAS%2FExecucao_Orcamentaria.qvw&host=QVS%40pqlk04&anonymous=true'
+          URL='https://www1.siop.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=IAS%2FExecucao_Orcamentaria.qvw&host=QVS%40pqlk04&anonymous=true&sheet=SH06'
           os.makedirs('debug',exist_ok=True); os.makedirs('dados',exist_ok=True)
           def wait(p,s=6):
               try:p.wait_for_load_state('networkidle',timeout=20000)
@@ -41,8 +41,9 @@ jobs:
               b=pw.chromium.launch(args=['--no-sandbox']); c=b.new_context(locale='pt-BR',accept_downloads=True,viewport={'width':1536,'height':960})
               p=c.new_page(); p.on('download',lambda d: captured.append(d))
               p.goto(URL,timeout=120000); wait(p,10); shot(p,'01-abriu')
-              find_activate(p,'Novo PAC'); shot(p,'02-novo-pac')
-              # A visão Novo PAC já é a fonte. Busca RAP e ativa caso esteja desligado.
+              # A URL já entra diretamente na folha SH06 (Novo PAC).
+              shot(p,'02-novo-pac-direto')
+              # Ativa a exibição de Restos a Pagar.
               find_activate(p,'Mostrar valores de Restos a Pagar'); shot(p,'03-rap')
               # Busca um cabeçalho da tabela, fecha busca e abre menu de contexto na região focada.
               p.keyboard.press('Control+f'); p.keyboard.type('Dotação Atual',delay=50); time.sleep(1); p.keyboard.press('Escape');
