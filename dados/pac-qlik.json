@@ -1,7 +1,7 @@
 {
   "fonte": "Painel do Orcamento Federal - Novo PAC (SH26/CH185)",
-  "gerado_em": "2026-11-17T19:30:04+00:00",
-  "tem_rap": false,
+  "gerado_em": "2026-11-17T19:42:49+00:00",
+  "tem_rap": true,
   "anos": {
     "2026": [
       {
@@ -11,8 +11,8 @@
         "liquidado": 0.0,
         "pago": 0.0,
         "credito_contido": 0.0,
-        "rp_inscritos": 0.0,
-        "rp_pagos": 0.0
+        "rp_inscritos": 55548274.0,
+        "rp_pagos": 11628431.0
       },
       {
         "acao": "162P",
@@ -21,7 +21,7 @@
         "liquidado": 0.0,
         "pago": 0.0,
         "credito_contido": 0.0,
-        "rp_inscritos": 0.0,
+        "rp_inscritos": 14999968.0,
         "rp_pagos": 0.0
       },
       {
@@ -31,8 +31,8 @@
         "liquidado": 0.0,
         "pago": 0.0,
         "credito_contido": 0.0,
-        "rp_inscritos": 0.0,
-        "rp_pagos": 0.0
+        "rp_inscritos": 36011720.0,
+        "rp_pagos": 3155300.0
       },
       {
         "acao": "00TY",
