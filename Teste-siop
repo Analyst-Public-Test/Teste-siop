@@ -1,0 +1,73 @@
+name: Teste SIOP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. SPARQL do SIOP (consulta PAC 2026 - MCom)
+        run: |
+          cat > consulta.rq <<'SPARQL'
+          PREFIX loa: <http://vocab.e.gov.br/2013/09/loa#>
+          PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+          SELECT ?uo_nome ?acao_nome ?po
+            (sum(?v1) as ?dotacao_inicial)
+            (sum(?v2) as ?lei_mais_credito)
+            (sum(?v3) as ?empenhado)
+            (sum(?v4) as ?liquidado)
+            (sum(?v5) as ?pago)
+          WHERE {
+            GRAPH <http://orcamento.dados.gov.br/2026/> {
+              ?i a loa:ItemDespesa .
+              ?i loa:temUnidadeOrcamentaria ?uo .
+              ?i loa:temAcao ?acao .
+              ?i loa:temPlanoOrcamentario ?po .
+              ?i loa:temResultadoPrimario <http://orcamento.dados.gov.br/id/2026/ResultadoPrimario/3> .
+              ?i loa:valorDotacaoInicial ?v1 .
+              ?i loa:valorLeiMaisCredito ?v2 .
+              ?i loa:valorEmpenhado ?v3 .
+              ?i loa:valorLiquidado ?v4 .
+              ?i loa:valorPago ?v5 .
+              OPTIONAL { ?uo rdfs:label ?uo_nome }
+              OPTIONAL { ?acao rdfs:label ?acao_nome }
+              FILTER(STRSTARTS(STR(?uo), "http://orcamento.dados.gov.br/id/2026/UnidadeOrcamentaria/41"))
+            }
+          }
+          GROUP BY ?uo_nome ?acao_nome ?po
+          ORDER BY ?uo_nome ?acao_nome
+          SPARQL
+
+          echo "=== IP de saida do GitHub ==="
+          curl -s https://api.ipify.org; echo
+
+          echo "=== SPARQL: status HTTP ==="
+          curl -sS -m 120 -o resultado.json -w "HTTP %{http_code}\n" \
+            -H "Accept: application/sparql-results+json" \
+            --data-urlencode "query@consulta.rq" \
+            https://www1.siop.planejamento.gov.br/sparql/ || echo "CURL FALHOU (codigo $?)"
+
+          echo "=== SPARQL: primeiras linhas da resposta ==="
+          head -c 1500 resultado.json || true; echo
+
+      - name: 2. SIOP libera CORS? (cabecalhos de resposta)
+        run: |
+          curl -sS -m 60 -D - -o /dev/null \
+            -H "Origin: https://exemplo.gov.br" \
+            -H "Accept: application/sparql-results+json" \
+            "https://www1.siop.planejamento.gov.br/sparql/?query=SELECT%20*%20WHERE%20%7B%3Fs%20%3Fp%20%3Fo%7D%20LIMIT%201&format=application%2Fsparql-results%2Bjson" \
+            | grep -i -E "^HTTP|access-control|content-type" || echo "CURL FALHOU ou sem cabecalhos CORS"
+
+      - name: 3. Portal da Transparencia (so verifica se responde)
+        run: |
+          curl -sS -m 60 -o /dev/null -w "HTTP %{http_code}\n" \
+            https://portaldatransparencia.gov.br/download-de-dados/despesas-execucao \
+            || echo "CURL FALHOU (codigo $?)"
+
+      - name: Guardar resultado
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado-sparql
+          path: resultado.json
+          if-no-files-found: ignore
