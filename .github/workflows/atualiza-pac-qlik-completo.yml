@@ -104,9 +104,30 @@ jobs:
 
           def tem_rap(d): return "rap inscrito" in d[:4000].decode("utf-8-sig", "ignore").lower() or "rap inscrito" in d[:4000].decode("latin-1").lower()
 
-          def liga_rap(p):
-              ok = clica_menu(p, [r"Mostrar valores de Restos a Pagar", r"Restos a Pagar"])
-              log("chave RAP clicada" if ok else "chave RAP nao encontrada como texto"); espera_qlik(p, 8); shot(p, "chave-rap")
+          def rotulo_rap(p):
+              loc = p.get_by_text(re.compile(r"Mostrar valores de Restos a Pagar", re.I))
+              for i in range(loc.count()):
+                  el = loc.nth(i)
+                  try:
+                      if el.is_visible(): return el.bounding_box()
+                  except Exception: pass
+              return None
+
+          def tenta_rap(p, jeito):
+              """A chave e um desenho separado, a esquerda do texto. Clicar no texto nao liga."""
+              b = rotulo_rap(p)
+              if not b: log("texto da chave RAP nao encontrado"); return False
+              y = b["y"] + b["height"] / 2
+              if jeito == "chave":            # bolinha da chave, ~18 px antes do texto
+                  x = b["x"] - 18
+              elif jeito == "chave-longe":    # caso a chave esteja um pouco mais afastada
+                  x = b["x"] - 30
+              else:                           # o proprio texto
+                  x = b["x"] + 10
+              alvo = p.evaluate("([x,y]) => { const e=document.elementFromPoint(x,y); return e ? (e.tagName+' '+(e.className||'')) : 'nada'; }", [x, y])
+              log(f"clicando chave RAP ({jeito}) em {int(x)},{int(y)} -> {alvo}")
+              p.mouse.click(x, y); espera_qlik(p, 10); shot(p, "rap-" + jeito)
+              return True
 
           # ---------------- leitura do CSV ----------------
           def norm(s):
@@ -186,9 +207,13 @@ jobs:
                       clica_menu(p, [r"NovoPAC", r"Novo PAC"]); espera_qlik(p, 10); shot(p, "aba-novopac")
 
                   raw = exporta(p, ctx, achados)
-                  if raw and not tem_rap(raw):
-                      log("CSV veio sem colunas de RAP; ligando a chave e exportando de novo")
-                      liga_rap(p); raw2 = exporta(p, ctx, achados); raw = raw2 or raw
+                  for jeito in ("chave", "chave-longe", "texto"):
+                      if not raw or tem_rap(raw): break
+                      log("CSV sem colunas de RAP; tentando ligar a chave:", jeito)
+                      if tenta_rap(p, jeito):
+                          raw2 = exporta(p, ctx, achados)
+                          if raw2: raw = raw2
+                  if raw and tem_rap(raw): log("RAP OK: colunas de restos a pagar presentes")
                   try: open("debug/xhr.txt", "w", encoding="utf-8").write("\n\n".join(xhr))
                   except Exception: pass
                   br.close()
