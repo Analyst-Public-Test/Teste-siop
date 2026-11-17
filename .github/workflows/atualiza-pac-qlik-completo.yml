@@ -113,8 +113,27 @@ jobs:
                   except Exception: pass
               return None
 
+          RAP_OBJ = "TX2309"   # chave "Mostrar valores de Restos a Pagar" (folha SH26: left 770, top 440, 30x20)
+
           def tenta_rap(p, jeito):
-              """A chave e um desenho separado, a esquerda do texto. Clicar no texto nao liga."""
+              """A chave e o objeto Qlik Document\\TX2309, a esquerda do texto (TX2300). Clicar no texto nao liga."""
+              if jeito == "objeto":
+                  for sel in (f".Document_{RAP_OBJ}", f"[class*='Document_{RAP_OBJ}']"):
+                      loc = p.locator(sel)
+                      if loc.count():
+                          el = loc.first
+                          try:
+                              b = el.bounding_box(); log("chave RAP achada por", sel, b)
+                              inner = el.locator("*").last if el.locator("*").count() else el
+                              try: inner.click(timeout=8000)
+                              except Exception: p.mouse.click(b["x"] + b["width"]/2, b["y"] + b["height"]/2)
+                              espera_qlik(p, 10); shot(p, "rap-objeto"); return True
+                          except Exception as e: log("falha clicando objeto RAP", e)
+                  log("objeto", RAP_OBJ, "nao encontrado no HTML")
+                  try: open("debug/classes.txt","w",encoding="utf-8").write("\n".join(p.evaluate(
+                      "() => [...document.querySelectorAll('[class*=Document_]')].map(e => e.className + ' ' + JSON.stringify(e.getBoundingClientRect()))")))
+                  except Exception: pass
+                  return False
               b = rotulo_rap(p)
               if not b: log("texto da chave RAP nao encontrado"); return False
               y = b["y"] + b["height"] / 2
@@ -207,7 +226,7 @@ jobs:
                       clica_menu(p, [r"NovoPAC", r"Novo PAC"]); espera_qlik(p, 10); shot(p, "aba-novopac")
 
                   raw = exporta(p, ctx, achados)
-                  for jeito in ("chave", "chave-longe", "texto"):
+                  for jeito in ("objeto", "chave", "chave-longe", "texto"):
                       if not raw or tem_rap(raw): break
                       log("CSV sem colunas de RAP; tentando ligar a chave:", jeito)
                       if tenta_rap(p, jeito):
