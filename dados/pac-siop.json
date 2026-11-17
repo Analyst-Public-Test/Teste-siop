@@ -1,0 +1,423 @@
+{
+  "gerado_em": "2026-11-17T14:20:18+00:00",
+  "fonte": "SIOP - Dados Abertos (SPARQL), Resultado Primario 3, UOs 41*",
+  "anos": {
+    "2024": {
+      "por_acao": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "dotacao_inicial": 14000000.0,
+          "lei_mais_credito": 9679982.0,
+          "empenhado": 9679982.0,
+          "liquidado": 9679982.0,
+          "pago": 9679982.0
+        },
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "acao": "00UA",
+          "acao_nome": "Subvenção Econômica para a Ampliação do Acesso de Escolas Públicas à Internet em Banda Larga (Lei nº 9.998, de 2000)",
+          "dotacao_inicial": 38000000.0,
+          "lei_mais_credito": 0.0,
+          "empenhado": 0.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "dotacao_inicial": 39831880.0,
+          "lei_mais_credito": 10762473.0,
+          "empenhado": 10602495.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "dotacao_inicial": 25453690.0,
+          "lei_mais_credito": 8484563.0,
+          "empenhado": 8484563.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "dotacao_inicial": 9333020.0,
+          "lei_mais_credito": 0.0,
+          "empenhado": 0.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ],
+      "linhas": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0002",
+          "po_codigo_completo": "41902230500TY00010002",
+          "dotacao_inicial": 0.0,
+          "lei_mais_credito": 281941.0,
+          "empenhado": 281941.0,
+          "liquidado": 281941.0,
+          "pago": 281941.0
+        },
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "41902230500TY00010000",
+          "dotacao_inicial": 14000000.0,
+          "lei_mais_credito": 9398041.0,
+          "empenhado": 9398041.0,
+          "liquidado": 9398041.0,
+          "pago": 9398041.0
+        },
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00UA",
+          "acao_nome": "Subvenção Econômica para a Ampliação do Acesso de Escolas Públicas à Internet em Banda Larga (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "41902230500UA00010000",
+          "dotacao_inicial": 38000000.0,
+          "lei_mais_credito": 0.0,
+          "empenhado": 0.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "localizador": "0001",
+          "po": "0002",
+          "po_codigo_completo": "41101230521AE00010002",
+          "dotacao_inicial": 39831880.0,
+          "lei_mais_credito": 10762473.0,
+          "empenhado": 10602495.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "localizador": "0020",
+          "po": "0000",
+          "po_codigo_completo": "411012305162Q00200000",
+          "dotacao_inicial": 8484563.0,
+          "lei_mais_credito": 8484563.0,
+          "empenhado": 8484563.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "localizador": "0010",
+          "po": "0000",
+          "po_codigo_completo": "411012305162Q00100000",
+          "dotacao_inicial": 16969127.0,
+          "lei_mais_credito": 0.0,
+          "empenhado": 0.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "411012305162P00010000",
+          "dotacao_inicial": 9333020.0,
+          "lei_mais_credito": 0.0,
+          "empenhado": 0.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ]
+    },
+    "2025": {
+      "por_acao": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "dotacao_inicial": 30000000.0,
+          "lei_mais_credito": 30000000.0,
+          "empenhado": 30000000.0,
+          "liquidado": 30000000.0,
+          "pago": 30000000.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "dotacao_inicial": 45000000.0,
+          "lei_mais_credito": 44945779.0,
+          "empenhado": 44945779.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "dotacao_inicial": 28000000.0,
+          "lei_mais_credito": 27583511.0,
+          "empenhado": 27583507.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "dotacao_inicial": 15000000.0,
+          "lei_mais_credito": 14999969.0,
+          "empenhado": 14999968.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ],
+      "linhas": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0003",
+          "po_codigo_completo": "41902230500TY00010003",
+          "dotacao_inicial": 0.0,
+          "lei_mais_credito": 873786.0,
+          "empenhado": 873786.0,
+          "liquidado": 873786.0,
+          "pago": 873786.0
+        },
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "41902230500TY00010000",
+          "dotacao_inicial": 30000000.0,
+          "lei_mais_credito": 29126214.0,
+          "empenhado": 29126214.0,
+          "liquidado": 29126214.0,
+          "pago": 29126214.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "localizador": "0001",
+          "po": "0002",
+          "po_codigo_completo": "41101230521AE00010002",
+          "dotacao_inicial": 45000000.0,
+          "lei_mais_credito": 44945779.0,
+          "empenhado": 44945779.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "localizador": "0020",
+          "po": "0000",
+          "po_codigo_completo": "411012305162Q00200000",
+          "dotacao_inicial": 28000000.0,
+          "lei_mais_credito": 27583511.0,
+          "empenhado": 27583507.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "411012305162P00010000",
+          "dotacao_inicial": 15000000.0,
+          "lei_mais_credito": 14999969.0,
+          "empenhado": 14999968.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ]
+    },
+    "2026": {
+      "por_acao": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "dotacao_inicial": 30000000.0,
+          "lei_mais_credito": 30000000.0,
+          "empenhado": 12141595.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "dotacao_inicial": 41703207.0,
+          "lei_mais_credito": 41703207.0,
+          "empenhado": 25909900.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "dotacao_inicial": 21601309.0,
+          "lei_mais_credito": 21601309.0,
+          "empenhado": 21601309.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "dotacao_inicial": 13901069.0,
+          "lei_mais_credito": 13901069.0,
+          "empenhado": 13901069.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ],
+      "linhas": [
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0004",
+          "po_codigo_completo": "41902230500TY00010004",
+          "dotacao_inicial": 0.0,
+          "lei_mais_credito": 353638.0,
+          "empenhado": 353638.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41902",
+          "uo_nome": "Fundo de Universalização dos Serviços de Telecomunicações - FUST",
+          "programa": "2305",
+          "acao": "00TY",
+          "acao_nome": "Subvenção Econômica a Projetos de Expansão, de Uso e de Melhoria das Redes e dos Serviços de Telecomunicações (Lei nº 9.998, de 2000)",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "41902230500TY00010000",
+          "dotacao_inicial": 30000000.0,
+          "lei_mais_credito": 29646362.0,
+          "empenhado": 11787957.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "21AE",
+          "acao_nome": "Evolução e Expansão dos Serviços de Radiodifusão",
+          "localizador": "0001",
+          "po": "0002",
+          "po_codigo_completo": "41101230521AE00010002",
+          "dotacao_inicial": 41703207.0,
+          "lei_mais_credito": 41703207.0,
+          "empenhado": 25909900.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162Q",
+          "acao_nome": "Implantação de Infraestrutura de Comunicações",
+          "localizador": "0020",
+          "po": "0000",
+          "po_codigo_completo": "411012305162Q00200000",
+          "dotacao_inicial": 21601309.0,
+          "lei_mais_credito": 21601309.0,
+          "empenhado": 21601309.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        },
+        {
+          "uo": "41101",
+          "uo_nome": "Ministério das Comunicações - Administração Direta",
+          "programa": "2305",
+          "acao": "162P",
+          "acao_nome": "Implementação de Cidades Conectadas",
+          "localizador": "0001",
+          "po": "0000",
+          "po_codigo_completo": "411012305162P00010000",
+          "dotacao_inicial": 13901069.0,
+          "lei_mais_credito": 13901069.0,
+          "empenhado": 13901069.0,
+          "liquidado": 0.0,
+          "pago": 0.0
+        }
+      ]
+    }
+  },
+  "erros": {}
+}
