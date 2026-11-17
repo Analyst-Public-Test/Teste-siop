@@ -1,100 +1,228 @@
 name: PAC 2026 - Qlik completo
+
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '30 9 * * *'   # 06:30 de Brasilia, todo dia
+
 permissions:
   contents: write
+
 jobs:
   pac:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with:
+          python-version: '3.12'
+
       - name: Instala navegador
         run: |
           pip install playwright
           python -m playwright install --with-deps chromium
-      - name: Exporta Novo PAC e gera JSON completo
+
+      - name: Exporta Novo PAC (SH26 / tabela CH185) e gera JSON
         run: |
           cat > pac_qlik.py <<'PYEOF'
-          import os,time,csv,io,json,re,unicodedata
+          # PAC 2026 - exporta a tabela CH185 da folha Novo PAC (SH26) do Painel do Orcamento e gera dados/pac-qlik.json
+          import os, re, io, csv, json, time, unicodedata, datetime
+          from urllib.parse import urljoin
           from playwright.sync_api import sync_playwright
-          URL='https://www1.siop.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=IAS%2FExecucao_Orcamentaria.qvw&host=QVS%40pqlk04&anonymous=true&sheet=SH06'
-          os.makedirs('debug',exist_ok=True); os.makedirs('dados',exist_ok=True)
-          def wait(p,s=6):
-              try:p.wait_for_load_state('networkidle',timeout=20000)
-              except:pass
-              time.sleep(s)
-          def shot(p,n): p.screenshot(path='debug/'+n+'.png',full_page=True)
-          def find_activate(p,text):
-              p.keyboard.press('Control+f'); time.sleep(.5); p.keyboard.type(text,delay=60); time.sleep(1); p.keyboard.press('Escape'); p.keyboard.press('Enter'); wait(p,8)
-          def norm(s): return re.sub(r'[^a-z0-9]+',' ',unicodedata.normalize('NFKD',s or '').encode('ascii','ignore').decode().lower()).strip()
+
+          BASE = os.environ.get("QLIK_URL", "https://www1.siop.planejamento.gov.br/QvAJAXZfc/opendoc.htm"
+                 "?document=IAS%2FExecucao_Orcamentaria.qvw&host=QVS%40pqlk04&anonymous=true")
+          SHEET, OBJ = "SH26", "CH185"
+          PAUSA = float(os.environ.get("QLIK_PAUSA", "1"))
+          os.makedirs("debug", exist_ok=True); os.makedirs("dados", exist_ok=True)
+          LOG = open("debug/log.txt", "w", encoding="utf-8")
+          def log(*a):
+              s = " ".join(str(x) for x in a); print(s, flush=True); LOG.write(s + "\n"); LOG.flush()
+          def dorme(s): time.sleep(s * PAUSA)
+          n = [0]
+          def shot(p, nome):
+              n[0] += 1
+              try: p.screenshot(path=f"debug/{n[0]:02d}-{nome}.png")
+              except Exception as e: log("print falhou", e)
+
+          def espera_qlik(p, s=6):
+              try: p.wait_for_load_state("networkidle", timeout=30000)
+              except Exception: pass
+              dorme(s)
+
+          def objeto(p):
+              """Acha o quadro da tabela CH185 (classe Document_CH185 do QlikView AJAX); se nao achar, pelo tamanho."""
+              for sel in (f".Document_{OBJ}", f"[class*='Document_{OBJ}']", f"[id*='{OBJ}']"):
+                  loc = p.locator(sel)
+                  if loc.count() and loc.first.is_visible(): log("tabela achada por", sel); return loc.first
+              best = p.evaluate("""() => { let r=null, d=1e9;
+                  for (const e of document.querySelectorAll('div')) { const b=e.getBoundingClientRect();
+                    const x=Math.abs(b.width-1230)+Math.abs(b.height-445); if (x<d && b.width>800) {d=x; r=e;} }
+                  if (r) { r.setAttribute('data-ch185','1'); } return d; }""")
+              log("tabela achada pelo tamanho, diferenca", best)
+              loc = p.locator("[data-ch185='1']")
+              return loc.first if loc.count() and best < 120 else None
+
+          def clica_menu(p, textos):
+              for t in textos:
+                  loc = p.get_by_text(re.compile(t, re.I))
+                  for i in range(loc.count()):
+                      el = loc.nth(i)
+                      try:
+                          if el.is_visible(): el.click(timeout=8000); log("menu clicado:", t); return True
+                      except Exception: pass
+              return False
+
+          def exporta(p, ctx, achados):
+              tab = objeto(p)
+              if not tab: log("ERRO: tabela CH185 nao encontrada"); return None
+              tab.scroll_into_view_if_needed()
+              b = tab.bounding_box()
+              achados.clear()
+              p.mouse.click(b["x"] + 60, b["y"] + 40, button="right"); dorme(2); shot(p, "menu")
+              if not clica_menu(p, [r"^\s*Exportar", r"Enviar para (o )?Excel", r"^\s*Export", r"Send to Excel"]):
+                  log("ERRO: item Exportar nao apareceu no menu")
+                  try: open("debug/menu.html", "w", encoding="utf-8").write(p.content())
+                  except Exception: pass
+                  return None
+              fim = time.time() + 120
+              while time.time() < fim and not achados:
+                  for a in p.locator("a[href]").all():          # alguns QlikView mostram link "clique aqui"
+                      try:
+                          h = urljoin(p.url, a.get_attribute("href") or "")
+                          if re.search(r"datamode=binary|\.csv|\.xls", h, re.I): achados.append(("link", h))
+                      except Exception: pass
+                  dorme(2)
+              shot(p, "depois-exportar")
+              for tipo, x in list(achados):
+                  try:
+                      dados = open(x.path(), "rb").read() if tipo == "download" else ctx.request.get(x).body()
+                      if dados and len(dados) > 50: log("arquivo via", tipo, len(dados), "bytes"); return dados
+                  except Exception as e: log("falha lendo", tipo, e)
+              log("ERRO: exportacao nao gerou arquivo"); return None
+
+          def tem_rap(d): return "rap inscrito" in d[:4000].decode("utf-8-sig", "ignore").lower() or "rap inscrito" in d[:4000].decode("latin-1").lower()
+
+          def liga_rap(p):
+              ok = clica_menu(p, [r"Mostrar valores de Restos a Pagar", r"Restos a Pagar"])
+              log("chave RAP clicada" if ok else "chave RAP nao encontrada como texto"); espera_qlik(p, 8); shot(p, "chave-rap")
+
+          # ---------------- leitura do CSV ----------------
+          def norm(s):
+              s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+              return re.sub(r"[^a-z0-9]+", " ", s).strip()
           def num(s):
-              s=(s or '').strip().replace(' ','');
-              if s in ('','-','–'): return 0.0
-              neg=s.startswith('('); s=s.strip('()').replace('.','').replace(',','.')
-              try:v=float(s)
-              except:return 0.0
+              s = (s or "").strip().replace(" ", "").replace("\xa0", "")
+              if s in ("", "-", "–", "—"): return 0.0
+              neg = s.startswith("(") or s.startswith("-")
+              s = s.strip("()-").replace(".", "").replace(",", ".")
+              try: v = float(s)
+              except ValueError: return 0.0
               return -v if neg else v
-          captured=[]
-          with sync_playwright() as pw:
-              b=pw.chromium.launch(args=['--no-sandbox']); c=b.new_context(locale='pt-BR',accept_downloads=True,viewport={'width':1536,'height':960})
-              p=c.new_page(); p.on('download',lambda d: captured.append(d))
-              p.goto(URL,timeout=120000); wait(p,10); shot(p,'01-abriu')
-              # A URL já entra diretamente na folha SH06 (Novo PAC).
-              shot(p,'02-novo-pac-direto')
-              # Ativa a exibição de Restos a Pagar.
-              find_activate(p,'Mostrar valores de Restos a Pagar'); shot(p,'03-rap')
-              # Busca um cabeçalho da tabela, fecha busca e abre menu de contexto na região focada.
-              p.keyboard.press('Control+f'); p.keyboard.type('Dotação Atual',delay=50); time.sleep(1); p.keyboard.press('Escape');
-              p.keyboard.press('Shift+F10'); time.sleep(2); shot(p,'04-menu')
-              find_activate(p,'Exportar');
-              end=time.time()+120
-              while time.time()<end and not captured: time.sleep(2)
-              shot(p,'05-exportou')
-              if not captured: raise RuntimeError('Exportação não foi capturada')
-              path=captured[-1].path(); raw=open(path,'rb').read(); open('debug/export.csv','wb').write(raw); b.close()
-          txt=None
-          for enc in ('utf-8-sig','cp1252','latin-1'):
-              try: txt=raw.decode(enc); break
-              except: pass
-          sep=';' if txt.count(';')>txt.count('\t') else '\t'; rows=list(csv.DictReader(io.StringIO(txt),delimiter=sep))
-          if not rows: raise RuntimeError('CSV vazio')
-          cols={norm(k):k for k in rows[0]}
-          def col(r,*names):
-              for n in names:
-                  if norm(n) in cols:return r.get(cols[norm(n)],'')
-              return ''
-          acc={}
-          for r in rows:
-              ac=col(r,'Ação')[:4]; ano=col(r,'Ano'); uo=col(r,'Unidade Orçamentária')[:5]
-              if not ac or not ano.isdigit() or not uo.startswith('41'): continue
-              k=(ano,ac); a=acc.setdefault(k,{'acao':ac,'dotacao_atual':0,'empenhado':0,'liquidado':0,'pago':0,'credito_contido':0,'rp_inscritos':0,'rp_pagos':0})
-              a['dotacao_atual']+=num(col(r,'Dotação Atual'))
-              a['empenhado']+=num(col(r,'Empenhado'))
-              a['liquidado']+=num(col(r,'Liquidado'))
-              a['pago']+=num(col(r,'Pago Exercício','Pago'))
-              a['credito_contido']+=num(col(r,'Bloqueado 107'))+num(col(r,'Bloqueado 108'))
-              a['rp_inscritos']+=num(col(r,'RAP Exercícios Anteriores'))+num(col(r,'RAP Inscrito Não Processado'))+num(col(r,'Rap Inscrito Processado'))
-              a['rp_pagos']+=num(col(r,'RAP Pago Não Processado'))+num(col(r,'RAP Pago Processado'))
-          data={'fonte':'Painel do Orçamento Federal - Novo PAC','gerado_em':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'anos':{}}
-          for (ano,ac),v in acc.items(): data['anos'].setdefault(ano,[]).append(v)
-          if '2026' not in data['anos']: raise RuntimeError('2026 não encontrado no CSV')
-          json.dump(data,open('dados/pac-qlik.json','w',encoding='utf-8'),ensure_ascii=False,indent=2)
-          print('OK 2026:',[(x['acao'],x['dotacao_atual'],x['empenhado'],x['rp_inscritos'],x['rp_pagos']) for x in data['anos']['2026']])
+
+          COLS = {"ano": ["ano"], "uo": ["unidade orcamentaria"], "acao": ["acao"],
+                  "dotacao_atual": ["dotacao atual"], "empenhado": ["empenhado"], "liquidado": ["liquidado"],
+                  "pago": ["pago exercicio", "pago"], "b107": ["bloqueado 107"], "b108": ["bloqueado 108"],
+                  "rap_ant": ["rap exercicios anteriores"], "rap_np": ["rap inscrito nao processado"],
+                  "rap_p": ["rap inscrito processado"], "rpg_np": ["rap pago nao processado"], "rpg_p": ["rap pago processado"]}
+          OBRIG = ["ano", "uo", "acao", "dotacao_atual", "empenhado"]
+
+          def le_csv(raw):
+              for enc in ("utf-8-sig", "cp1252", "latin-1"):
+                  try: txt = raw.decode(enc); break
+                  except UnicodeDecodeError: pass
+              sep = max([";", "\t", ","], key=txt.count)
+              rows = list(csv.reader(io.StringIO(txt), delimiter=sep))
+              head = [norm(h) for h in rows[0]]
+              idx = {}
+              for k, nomes in COLS.items():
+                  for nm in nomes:
+                      if nm in head: idx[k] = head.index(nm); break
+              falta = [k for k in OBRIG if k not in idx]
+              if falta: raise ValueError("colunas ausentes: " + ", ".join(falta) + " | cabecalho: " + " ; ".join(rows[0]))
+              log("colunas lidas:", sorted(idx))
+              acc = {}
+              for r in rows[1:]:
+                  if len(r) < len(head): continue
+                  g = lambda k: r[idx[k]].strip() if k in idx else ""
+                  ano, uo, acao = g("ano")[:4], g("uo")[:5], g("acao")[:4]
+                  if not ano.isdigit() or not uo.startswith("41") or not acao: continue
+                  a = acc.setdefault(ano, {}).setdefault(acao, {"acao": acao, "dotacao_atual": 0, "empenhado": 0, "liquidado": 0,
+                           "pago": 0, "credito_contido": 0, "rp_inscritos": 0, "rp_pagos": 0})
+                  a["dotacao_atual"] += num(g("dotacao_atual")); a["empenhado"] += num(g("empenhado"))
+                  a["liquidado"] += num(g("liquidado")); a["pago"] += num(g("pago"))
+                  a["credito_contido"] += num(g("b107")) + num(g("b108"))
+                  a["rp_inscritos"] += num(g("rap_ant")) + num(g("rap_np")) + num(g("rap_p"))
+                  a["rp_pagos"] += num(g("rpg_np")) + num(g("rpg_p"))
+              return acc, "rap_np" in idx
+
+          # ---------------- principal ----------------
+          def main():
+              achados, xhr = [], []
+              with sync_playwright() as pw:
+                  br = pw.chromium.launch(args=["--no-sandbox"], executable_path=os.environ.get("CHROME_PATH") or None)
+                  ctx = br.new_context(locale="pt-BR", accept_downloads=True, viewport={"width": 1920, "height": 1200},
+                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36")
+                  def resp(r):
+                      try:
+                          cd = (r.headers.get("content-disposition") or "").lower(); ct = (r.headers.get("content-type") or "").lower()
+                          if "attachment" in cd or "csv" in ct or "excel" in ct or "datamode=binary" in r.url.lower():
+                              achados.append(("link", r.url))
+                          if "QvsViewClient" in r.url and r.request.method == "POST":
+                              xhr.append((r.request.post_data or "")[:600])
+                      except Exception: pass
+                  ctx.on("response", resp)
+                  def nova(pg):
+                      pg.on("download", lambda d: achados.append(("download", d)))
+                      log("popup aberto:", pg.url)
+                  ctx.on("page", nova)
+                  p = ctx.new_page(); p.on("download", lambda d: achados.append(("download", d)))
+
+                  sep = "&" if "?" in BASE else "?"
+                  p.goto(BASE + sep + "sheet=" + SHEET, timeout=180000); espera_qlik(p, 12); shot(p, "abriu-SH26")
+                  if not objeto(p):
+                      log("SH26 nao abriu direto pela URL; tentando a aba pelo texto")
+                      clica_menu(p, [r"NovoPAC", r"Novo PAC"]); espera_qlik(p, 10); shot(p, "aba-novopac")
+
+                  raw = exporta(p, ctx, achados)
+                  if raw and not tem_rap(raw):
+                      log("CSV veio sem colunas de RAP; ligando a chave e exportando de novo")
+                      liga_rap(p); raw2 = exporta(p, ctx, achados); raw = raw2 or raw
+                  try: open("debug/xhr.txt", "w", encoding="utf-8").write("\n\n".join(xhr))
+                  except Exception: pass
+                  br.close()
+              if not raw: raise SystemExit("FALHOU: nao consegui exportar (veja debug/)")
+              open("debug/export.csv", "wb").write(raw)
+              acc, rap = le_csv(raw)
+              if "2026" not in acc: raise SystemExit("FALHOU: CSV sem linhas de 2026 do orgao 41 (veja debug/export.csv)")
+              out = {"fonte": "Painel do Orcamento Federal - Novo PAC (SH26/CH185)",
+                     "gerado_em": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                     "tem_rap": rap, "anos": {a: list(v.values()) for a, v in sorted(acc.items())}}
+              json.dump(out, open("dados/pac-qlik.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+              for x in out["anos"]["2026"]: log("2026", x)
+              if not rap: log("AVISO: exportado sem colunas de RAP")
+
+          if __name__ == "__main__":
+              main()
+
           PYEOF
           python pac_qlik.py
-      - name: Guarda diagnóstico
+
+      - name: Diagnostico (prints e log)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qlik-completo-debug
+          name: qlik-sh26-debug
           path: debug/
           if-no-files-found: ignore
+
       - name: Commit JSON
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@users.noreply.github.com
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
           git add dados/pac-qlik.json
-          git diff --staged --quiet || git commit -m "Atualiza PAC 2026 pelo Qlik"
+          git diff --staged --quiet && exit 0
+          git commit -m "Atualiza PAC 2026 (Novo PAC - Qlik)"
+          git pull --rebase
           git push
