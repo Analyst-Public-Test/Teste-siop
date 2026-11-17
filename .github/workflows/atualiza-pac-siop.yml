@@ -1,0 +1,123 @@
+name: Atualiza PAC SIOP
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'   # 09:00 UTC = 06:00 Brasilia, todo dia
+
+permissions:
+  contents: write
+
+jobs:
+  atualiza:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Busca dados no SIOP e grava dados/pac-siop.json
+        run: |
+          cat > transforma.py <<'PYEOF'
+          import json, re, sys, urllib.request, urllib.parse, datetime, os
+
+          ENDPOINT = "https://www1.siop.planejamento.gov.br/sparql/"
+          ANOS = [2024, 2025, 2026]
+
+          def consulta(ano):
+              return f"""PREFIX loa: <http://vocab.e.gov.br/2013/09/loa#>
+          PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+          SELECT ?uo_nome ?acao_nome ?po
+            (sum(?v1) as ?dotacao_inicial)
+            (sum(?v2) as ?lei_mais_credito)
+            (sum(?v3) as ?empenhado)
+            (sum(?v4) as ?liquidado)
+            (sum(?v5) as ?pago)
+          WHERE {{
+            GRAPH <http://orcamento.dados.gov.br/{ano}/> {{
+              ?i a loa:ItemDespesa .
+              ?i loa:temUnidadeOrcamentaria ?uo .
+              ?i loa:temAcao ?acao .
+              ?i loa:temPlanoOrcamentario ?po .
+              ?i loa:temResultadoPrimario <http://orcamento.dados.gov.br/id/{ano}/ResultadoPrimario/3> .
+              ?i loa:valorDotacaoInicial ?v1 .
+              ?i loa:valorLeiMaisCredito ?v2 .
+              ?i loa:valorEmpenhado ?v3 .
+              ?i loa:valorLiquidado ?v4 .
+              ?i loa:valorPago ?v5 .
+              OPTIONAL {{ ?uo rdfs:label ?uo_nome }}
+              OPTIONAL {{ ?acao rdfs:label ?acao_nome }}
+              FILTER(STRSTARTS(STR(?uo), "http://orcamento.dados.gov.br/id/{ano}/UnidadeOrcamentaria/41"))
+            }}
+          }}
+          GROUP BY ?uo_nome ?acao_nome ?po
+          ORDER BY ?uo_nome ?acao_nome"""
+
+          def baixa(q):
+              dados = urllib.parse.urlencode({"query": q}).encode()
+              req = urllib.request.Request(ENDPOINT, data=dados,
+                  headers={"Accept": "application/sparql-results+json"})
+              with urllib.request.urlopen(req, timeout=180) as r:
+                  return json.load(r)
+
+          PO_RE = re.compile(r"^(\d{5})(\d{4})(\w{4})(\d{4})(\w{4})$")
+
+          def converte(resp):
+              linhas = []
+              for b in resp["results"]["bindings"]:
+                  g = lambda k: b.get(k, {}).get("value", "")
+                  po_uri = g("po")
+                  cod = po_uri.rstrip("/").split("/")[-1]
+                  m = PO_RE.match(cod)
+                  uo, prog, acao, loc, po = (m.groups() if m else ("", "", "", "", cod))
+                  linhas.append({
+                      "uo": uo, "uo_nome": g("uo_nome"),
+                      "programa": prog, "acao": acao, "acao_nome": g("acao_nome"),
+                      "localizador": loc, "po": po, "po_codigo_completo": cod,
+                      "dotacao_inicial": float(g("dotacao_inicial") or 0),
+                      "lei_mais_credito": float(g("lei_mais_credito") or 0),
+                      "empenhado": float(g("empenhado") or 0),
+                      "liquidado": float(g("liquidado") or 0),
+                      "pago": float(g("pago") or 0),
+                  })
+              return linhas
+
+          def por_acao(linhas):
+              acc = {}
+              for l in linhas:
+                  k = (l["uo"], l["acao"])
+                  a = acc.setdefault(k, {"uo": l["uo"], "uo_nome": l["uo_nome"], "acao": l["acao"],
+                      "acao_nome": l["acao_nome"], "dotacao_inicial": 0, "lei_mais_credito": 0,
+                      "empenhado": 0, "liquidado": 0, "pago": 0})
+                  for c in ("dotacao_inicial","lei_mais_credito","empenhado","liquidado","pago"):
+                      a[c] += l[c]
+              return list(acc.values())
+
+          def main(saida, fonte=baixa):
+              out = {"gerado_em": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                     "fonte": "SIOP - Dados Abertos (SPARQL), Resultado Primario 3, UOs 41*",
+                     "anos": {}, "erros": {}}
+              for ano in ANOS:
+                  try:
+                      linhas = converte(fonte(consulta(ano)))
+                      out["anos"][str(ano)] = {"por_acao": por_acao(linhas), "linhas": linhas}
+                  except Exception as e:
+                      out["erros"][str(ano)] = str(e)
+              if "2026" not in out["anos"] or not out["anos"]["2026"]["linhas"]:
+                  print("ERRO: 2026 sem dados", out["erros"]); sys.exit(1)
+              os.makedirs(os.path.dirname(saida), exist_ok=True)
+              with open(saida, "w", encoding="utf-8") as f:
+                  json.dump(out, f, ensure_ascii=False, indent=2)
+              print({a: len(v["linhas"]) for a, v in out["anos"].items()}, out["erros"])
+
+          if __name__ == "__main__":
+              main("dados/pac-siop.json")
+
+          PYEOF
+          python3 transforma.py
+
+      - name: Commit se mudou
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add dados/pac-siop.json
+          git diff --staged --quiet || git commit -m "Atualiza dados do PAC (SIOP)"
+          git push
