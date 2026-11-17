@@ -3,7 +3,7 @@ name: Atualiza PAC SIOP
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'   # 09:00 UTC = 06:00 Brasilia, todo dia
+    - cron: '0 9 * * *'   # 06:00 de Brasília, todo dia
 
 permissions:
   contents: write
@@ -14,23 +14,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Busca dados no SIOP e grava dados/pac-siop.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instala navegador
         run: |
-          cat > transforma.py <<'PYEOF'
-          import json, re, sys, urllib.request, urllib.parse, datetime, os
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Grava os scripts
+        run: |
+          cat > siop.py <<'PYEOF'
+          import json, os, re, sys, csv, io, unicodedata, datetime, urllib.request, urllib.parse
 
           ENDPOINT = "https://www1.siop.planejamento.gov.br/sparql/"
           ANOS = [2024, 2025, 2026]
+          ANO_RAP = "2026"
+          SAIDA = "dados/pac-siop.json"
+          RAP_CSV = "rap/rap.csv"
 
           def consulta(ano):
               return f"""PREFIX loa: <http://vocab.e.gov.br/2013/09/loa#>
           PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
           SELECT ?uo_nome ?acao_nome ?po
-            (sum(?v1) as ?dotacao_inicial)
-            (sum(?v2) as ?lei_mais_credito)
-            (sum(?v3) as ?empenhado)
-            (sum(?v4) as ?liquidado)
-            (sum(?v5) as ?pago)
+            (sum(?v1) as ?dotacao_inicial) (sum(?v2) as ?lei_mais_credito)
+            (sum(?v3) as ?empenhado) (sum(?v4) as ?liquidado) (sum(?v5) as ?pago)
           WHERE {{
             GRAPH <http://orcamento.dados.gov.br/{ano}/> {{
               ?i a loa:ItemDespesa .
@@ -52,9 +61,8 @@ jobs:
           ORDER BY ?uo_nome ?acao_nome"""
 
           def baixa(q):
-              dados = urllib.parse.urlencode({"query": q}).encode()
-              req = urllib.request.Request(ENDPOINT, data=dados,
-                  headers={"Accept": "application/sparql-results+json"})
+              req = urllib.request.Request(ENDPOINT, data=urllib.parse.urlencode({"query": q}).encode(),
+                                           headers={"Accept": "application/sparql-results+json"})
               with urllib.request.urlopen(req, timeout=180) as r:
                   return json.load(r)
 
@@ -64,60 +72,252 @@ jobs:
               linhas = []
               for b in resp["results"]["bindings"]:
                   g = lambda k: b.get(k, {}).get("value", "")
-                  po_uri = g("po")
-                  cod = po_uri.rstrip("/").split("/")[-1]
+                  cod = g("po").rstrip("/").split("/")[-1]
                   m = PO_RE.match(cod)
                   uo, prog, acao, loc, po = (m.groups() if m else ("", "", "", "", cod))
-                  linhas.append({
-                      "uo": uo, "uo_nome": g("uo_nome"),
-                      "programa": prog, "acao": acao, "acao_nome": g("acao_nome"),
-                      "localizador": loc, "po": po, "po_codigo_completo": cod,
-                      "dotacao_inicial": float(g("dotacao_inicial") or 0),
-                      "lei_mais_credito": float(g("lei_mais_credito") or 0),
-                      "empenhado": float(g("empenhado") or 0),
-                      "liquidado": float(g("liquidado") or 0),
-                      "pago": float(g("pago") or 0),
-                  })
+                  linhas.append({"uo": uo, "uo_nome": g("uo_nome"), "programa": prog, "acao": acao,
+                                 "acao_nome": g("acao_nome"), "localizador": loc, "po": po, "po_codigo_completo": cod,
+                                 **{k: float(g(k) or 0) for k in ("dotacao_inicial", "lei_mais_credito", "empenhado", "liquidado", "pago")}})
               return linhas
 
           def por_acao(linhas):
               acc = {}
               for l in linhas:
-                  k = (l["uo"], l["acao"])
-                  a = acc.setdefault(k, {"uo": l["uo"], "uo_nome": l["uo_nome"], "acao": l["acao"],
-                      "acao_nome": l["acao_nome"], "dotacao_inicial": 0, "lei_mais_credito": 0,
-                      "empenhado": 0, "liquidado": 0, "pago": 0})
-                  for c in ("dotacao_inicial","lei_mais_credito","empenhado","liquidado","pago"):
+                  a = acc.setdefault((l["uo"], l["acao"]), {"uo": l["uo"], "uo_nome": l["uo_nome"], "acao": l["acao"],
+                      "acao_nome": l["acao_nome"], "dotacao_inicial": 0, "lei_mais_credito": 0, "empenhado": 0, "liquidado": 0, "pago": 0})
+                  for c in ("dotacao_inicial", "lei_mais_credito", "empenhado", "liquidado", "pago"):
                       a[c] += l[c]
               return list(acc.values())
 
-          def main(saida, fonte=baixa):
+          # ---------- Restos a pagar (CSV exportado do painel do SIOP) ----------
+          def norm(s):
+              s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+              return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+          def num(s):
+              s = (s or "").strip().replace(" ", "")
+              if s in ("", "-", "–"): return 0.0
+              neg = s.startswith("(") and s.endswith(")")
+              s = s.strip("()").replace(".", "").replace(",", ".")
+              try: v = float(s)
+              except ValueError: return 0.0
+              return -v if neg else v
+
+          COLS = {  # nome normalizado no CSV -> chave interna
+              "ano": "ano", "unidade orcamentaria": "uo", "acao": "acao", "dotacao atual": "dotacao_atual",
+              "empenhado": "empenhado", "bloqueado 107": "b107", "bloqueado 108": "b108",
+              "rap exercicios anteriores": "rap_ant", "rap inscrito nao processado": "rap_insc_np",
+              "rap inscrito processado": "rap_insc_p", "rap pago nao processado": "rap_pago_np",
+              "rap pago processado": "rap_pago_p",
+          }
+
+          def le_rap(caminho):
+              txt = open(caminho, "rb").read()
+              for enc in ("utf-8-sig", "cp1252", "latin-1"):
+                  try: txt = txt.decode(enc); break
+                  except UnicodeDecodeError: continue
+              sep = ";" if txt.count(";") > txt.count("\t") else "\t"
+              rows = list(csv.reader(io.StringIO(txt), delimiter=sep))
+              head = [norm(h) for h in rows[0]]
+              idx = {COLS[h]: i for i, h in enumerate(head) if h in COLS}
+              falta = [k for k in COLS.values() if k not in idx]
+              if falta: raise ValueError("colunas ausentes no CSV: " + ", ".join(falta))
+              acc = {}
+              for r in rows[1:]:
+                  if len(r) < len(head): continue
+                  g = lambda k: r[idx[k]].strip()
+                  uo, acao, ano = g("uo")[:5], g("acao")[:4], g("ano")
+                  if not uo.startswith("41") or not acao or not ano.isdigit(): continue  # pula Total e outros órgãos
+                  a = acc.setdefault((ano, acao), {"acao": acao, "dotacao_atual": 0, "empenhado": 0,
+                                                   "credito_contido": 0, "rp_inscritos": 0, "rp_pagos": 0})
+                  a["dotacao_atual"] += num(g("dotacao_atual"))
+                  a["empenhado"] += num(g("empenhado"))
+                  a["credito_contido"] += num(g("b107")) + num(g("b108"))
+                  a["rp_inscritos"] += num(g("rap_ant")) + num(g("rap_insc_np")) + num(g("rap_insc_p"))
+                  a["rp_pagos"] += num(g("rap_pago_np")) + num(g("rap_pago_p"))
+              return acc
+
+          def junta_rap(out, rap, data_rap):
+              """Só aplica RAP numa ação se a Dotação atual do painel bater com a do SPARQL (garante mesmo filtro RP 3)."""
+              ano = out["anos"].get(ANO_RAP)
+              if not ano: return []
+              soma = {}
+              for p in ano["por_acao"]:
+                  soma.setdefault(p["acao"], 0); soma[p["acao"]] += p["lei_mais_credito"]
+              ok, aviso = [], []
+              for p in ano["por_acao"]:
+                  r = rap.get((ANO_RAP, p["acao"]))
+                  if not r: aviso.append(p["acao"] + ": sem linha no CSV do painel"); continue
+                  if abs(r["dotacao_atual"] - soma[p["acao"]]) > 1:
+                      aviso.append(f'{p["acao"]}: dotação do painel {r["dotacao_atual"]:,.0f} difere do SPARQL {soma[p["acao"]]:,.0f}'); continue
+                  if p["acao"] in ok: continue  # ação em 2 UOs: RAP vai só na primeira
+                  p.update(credito_contido=r["credito_contido"], rp_inscritos=r["rp_inscritos"], rp_pagos=r["rp_pagos"])
+                  ok.append(p["acao"])
+              out["rap"] = {"ano": ANO_RAP, "atualizado_em": data_rap, "aplicadas": ok, "avisos": aviso}
+              return ok
+
+          def main(fonte=baixa):
+              antigo = None
+              if os.path.exists(SAIDA):
+                  try: antigo = json.load(open(SAIDA, encoding="utf-8"))
+                  except Exception: antigo = None
               out = {"gerado_em": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-                     "fonte": "SIOP - Dados Abertos (SPARQL), Resultado Primario 3, UOs 41*",
-                     "anos": {}, "erros": {}}
+                     "fonte": "SIOP - Dados Abertos (SPARQL), Resultado Primario 3, UOs 41*", "anos": {}, "erros": {}}
               for ano in ANOS:
                   try:
                       linhas = converte(fonte(consulta(ano)))
                       out["anos"][str(ano)] = {"por_acao": por_acao(linhas), "linhas": linhas}
                   except Exception as e:
                       out["erros"][str(ano)] = str(e)
-              if "2026" not in out["anos"] or not out["anos"]["2026"]["linhas"]:
+              if not out["anos"].get(ANO_RAP, {}).get("linhas"):
                   print("ERRO: 2026 sem dados", out["erros"]); sys.exit(1)
-              os.makedirs(os.path.dirname(saida), exist_ok=True)
-              with open(saida, "w", encoding="utf-8") as f:
-                  json.dump(out, f, ensure_ascii=False, indent=2)
+
+              # RAP: CSV novo desta execução; se não veio, reaproveita o RAP da última execução boa
+              if os.path.exists(RAP_CSV):
+                  try:
+                      ok = junta_rap(out, le_rap(RAP_CSV), out["gerado_em"])
+                      print("RAP novo aplicado em:", ok, "| avisos:", out["rap"]["avisos"])
+                  except Exception as e:
+                      out["erros"]["rap"] = str(e); print("RAP: erro ao ler CSV:", e)
+              if "rap" not in out and antigo and antigo.get("rap", {}).get("aplicadas"):
+                  velho = {p["acao"]: p for p in antigo["anos"].get(ANO_RAP, {}).get("por_acao", []) if "rp_inscritos" in p}
+                  for p in out["anos"][ANO_RAP]["por_acao"]:
+                      v = velho.get(p["acao"])
+                      if v: p.update(credito_contido=v["credito_contido"], rp_inscritos=v["rp_inscritos"], rp_pagos=v["rp_pagos"])
+                  out["rap"] = dict(antigo["rap"], reaproveitado=True)
+                  print("RAP: painel não exportou hoje; mantido o de", antigo["rap"].get("atualizado_em"))
+
+              os.makedirs(os.path.dirname(SAIDA), exist_ok=True)
+              json.dump(out, open(SAIDA, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
               print({a: len(v["linhas"]) for a, v in out["anos"].items()}, out["erros"])
 
           if __name__ == "__main__":
-              main("dados/pac-siop.json")
+              main()
 
           PYEOF
-          python3 transforma.py
+          cat > qlik.py <<'PYEOF'
+          # Exporta do painel do SIOP (acesso anônimo) a tabela do Novo PAC com Restos a Pagar -> rap/rap.csv
+          import os, re, sys, time as _t
+          from urllib.parse import urljoin
+          class time:  # QLIK_PAUSA=0.1 acelera testes locais
+              sleep = staticmethod(lambda s: _t.sleep(s * float(os.environ.get("QLIK_PAUSA", "1"))))
+              time = staticmethod(_t.time)
+          from playwright.sync_api import sync_playwright
+
+          URL = os.environ.get("QLIK_URL", "https://www1.siop.planejamento.gov.br/QvAJAXZfc/opendoc.htm"
+                "?document=IAS%2FExecucao_Orcamentaria.qvw&host=QVS%40pqlk04&anonymous=true")
+          os.makedirs("rap", exist_ok=True); os.makedirs("debug", exist_ok=True)
+          passo = [0]
+
+          def shot(pg, nome):
+              passo[0] += 1
+              try: pg.screenshot(path=f"debug/{passo[0]:02d}-{nome}.png", full_page=True)
+              except Exception as e: print("screenshot falhou:", e)
+
+          def espera(pg, s=4):
+              try: pg.wait_for_load_state("networkidle", timeout=30000)
+              except Exception: pass
+              time.sleep(s)
+
+          def clica_texto(pg, texto, botao="left", exato=False):
+              loc = pg.get_by_text(texto, exact=exato) if isinstance(texto, str) else pg.get_by_text(texto)
+              n = loc.count()
+              for i in range(n):
+                  el = loc.nth(i)
+                  try:
+                      if el.is_visible():
+                          el.click(button=botao, timeout=10000); return True
+                  except Exception: continue
+              return False
+
+          def tem_rap(dados):
+              t = dados[:3000].decode("utf-8-sig", "ignore").lower()
+              return "rap inscrito" in t or "rap pago" in t
+
+          def exporta(pg, ctx, capturado):
+              capturado.clear()
+              antigos = set(pg.eval_on_selector_all("a[href]", "as => as.map(a => a.href)"))
+              ok = (clica_texto(pg, "Dotação Atual", "right", True) or clica_texto(pg, "Empenhado", "right", True))
+              if not ok: print("não achei o cabeçalho da tabela"); return None
+              time.sleep(2); shot(pg, "menu-botao-direito")
+              if not clica_texto(pg, re.compile(r"^\s*Exportar")):
+                  print("não achei 'Exportar' no menu"); return None
+              fim = time.time() + 120
+              while time.time() < fim and not capturado:
+                  for a in pg.locator("a[href]").all():           # QlikView às vezes mostra um link "clique aqui"
+                      try:
+                          h = urljoin(pg.url, a.get_attribute("href") or "")
+                          if h not in antigos and re.search(r"datamode=binary|\.csv|\.xls", h, re.I) and a.is_visible():
+                              antigos.add(h)
+                              r = ctx.request.get(h)
+                              if r.ok: capturado.append(("link", r))
+                      except Exception: pass
+                  time.sleep(2)
+              shot(pg, "depois-exportar")
+              for tipo, obj in list(capturado):
+                  try:
+                      dados = open(obj.path(), "rb").read() if tipo == "download" else obj.body()
+                      if dados: print("arquivo capturado via", tipo, len(dados), "bytes"); return dados
+                  except Exception as e: print("falha lendo", tipo, e)
+              return None
+
+          def main():
+              capturado = []
+              with sync_playwright() as p:
+                  b = p.chromium.launch(args=["--no-sandbox"], executable_path=os.environ.get("CHROME_PATH") or None)
+                  ctx = b.new_context(locale="pt-BR", accept_downloads=True, viewport={"width": 1920, "height": 1200},
+                                      user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0")
+                  def resp(r):
+                      try:
+                          ct = (r.headers.get("content-type") or "").lower(); cd = (r.headers.get("content-disposition") or "").lower()
+                          if "attachment" in cd or "csv" in ct or "excel" in ct or re.search(r"\.csv|datamode=binary", r.url, re.I):
+                              capturado.append(("resposta", r))
+                      except Exception: pass
+                  ctx.on("response", resp)
+                  ctx.on("page", lambda np: np.on("download", lambda d: capturado.append(("download", d))))
+                  pg = ctx.new_page()
+                  pg.on("download", lambda d: capturado.append(("download", d)))
+
+                  pg.goto(URL, timeout=120000); espera(pg, 10); shot(pg, "abriu")
+                  if not clica_texto(pg, "Novo PAC"): print("não achei 'Novo PAC'")
+                  espera(pg, 8); shot(pg, "novo-pac")
+
+                  dados = None
+                  for tentativa in range(3):          # liga a chave de RAP até o CSV vir com as colunas de RAP
+                      dados = exporta(pg, ctx, capturado)
+                      if dados and tem_rap(dados): break
+                      print(f"tentativa {tentativa+1}: sem colunas de RAP; alternando a chave")
+                      clica_texto(pg, "Mostrar valores de Restos a Pagar"); espera(pg, 8); shot(pg, f"chave-rap-{tentativa+1}")
+                  b.close()
+              if not dados or not tem_rap(dados):
+                  print("FALHOU: não consegui exportar o CSV com Restos a Pagar (veja os prints em debug/)"); sys.exit(1)
+              open("rap/rap.csv", "wb").write(dados)
+              print("OK: rap/rap.csv com", len(dados), "bytes")
+
+          if __name__ == "__main__":
+              main()
+
+          PYEOF
+
+      - name: 1. Exporta Restos a Pagar do painel do SIOP
+        continue-on-error: true
+        run: python qlik.py
+
+      - name: 2. Busca SPARQL e junta Restos a Pagar
+        run: python siop.py
+
+      - name: Prints do painel (diagnóstico)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prints-painel
+          path: debug/
+          if-no-files-found: ignore
 
       - name: Commit se mudou
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add dados/pac-siop.json
-          git diff --staged --quiet || git commit -m "Atualiza dados do PAC (SIOP)"
+          git diff --staged --quiet || git commit -m "Atualiza dados do PAC (SIOP + RAP)"
           git push
