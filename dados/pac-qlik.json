@@ -1,6 +1,6 @@
 {
   "fonte": "Painel do Orcamento Federal - Novo PAC (SH26/CH185)",
-  "gerado_em": "2026-11-24T21:02:42+00:00",
+  "gerado_em": "2026-11-25T20:24:50+00:00",
   "tem_rap": true,
   "anos": {
     "2026": [
@@ -32,7 +32,7 @@
         "pago": 0.0,
         "credito_contido": 0.0,
         "rp_inscritos": 36011720.0,
-        "rp_pagos": 3155300.0
+        "rp_pagos": 3214729.0
       },
       {
         "acao": "00TY",
